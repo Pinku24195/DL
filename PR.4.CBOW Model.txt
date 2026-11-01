@@ -1,0 +1,175 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Lambda, Dense
+from tensorflow.keras.preprocessing.text import Tokenizer
+
+
+# A. DATA PREPARATION
+
+text = """
+I love machine learning
+I love deep learning
+machine learning is interesting
+deep learning is powerful
+"""
+
+# Create tokenizer
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts([text])
+
+# Convert text into word IDs
+data = tokenizer.texts_to_sequences([text])[0]
+
+# Get vocabulary
+word_index = tokenizer.word_index
+vocab_size = len(word_index) + 1
+
+print("Vocabulary:")
+print(word_index)
+
+print("\nEncoded Data:")
+print(data)
+
+
+
+# B. GENERATE CBOW TRAINING DATA
+
+
+X = []
+y = []
+
+# One word before + one word after target word
+window = 1
+
+for i in range(window, len(data) - window):
+    
+    # Context words
+    context = (
+        data[i - window:i] + data[i + 1:i + window + 1]
+    )
+    
+    # Target word
+    target = data[i]
+    
+    X.append(context)
+    y.append(target)
+
+# Convert to NumPy arrays
+X = np.array(X)
+y = np.array(y)
+
+# Convert target words to one-hot encoding
+y = tf.keras.utils.to_categorical(y, num_classes=vocab_size)
+
+print("\nTraining Data:")
+print("X =")
+print(X)
+
+print("\nTarget =")
+print(y)
+
+
+
+# C. BUILD CBOW MODEL
+
+model = Sequential([
+    
+    # Convert word IDs into 10-dimensional embeddings
+    Embedding(
+        input_dim=vocab_size,
+        output_dim=10
+    ),
+    
+    # Average the context word embeddings
+    Lambda(
+        lambda x: tf.reduce_mean(x, axis=1)
+    ),
+    
+    # Predict the target word
+    Dense(
+        vocab_size,
+        activation="softmax"
+    )
+])
+
+
+
+# D. COMPILE MODEL
+
+
+model.compile(
+    optimizer="adam",
+    loss="categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+
+
+# E. TRAIN MODEL
+
+
+print("\nTraining CBOW Model...")
+
+model.fit(
+    X,
+    y,
+    epochs=200,
+    verbose=0
+)
+
+print("Training completed.")
+
+
+
+# F. PREDICTION
+
+
+# Context words for prediction
+context = ["love", "learning"]
+
+# Convert context words to their IDs
+input_data = np.array([
+    [word_index[word] for word in context]
+])
+
+# Predict probabilities
+prediction = model.predict(
+    input_data,
+    verbose=0
+)
+
+# Get word ID with highest probability
+predicted_id = np.argmax(prediction[0])
+
+# Reverse vocabulary: ID -> word
+reverse_word = {
+    value: key for key, value in word_index.items()
+}
+
+# Get predicted word
+predicted_word = reverse_word.get(
+    predicted_id,
+    "Unknown"
+)
+
+
+
+# G. DISPLAY RESULT
+
+print("\n------------------------------")
+print("CBOW Prediction")
+print("------------------------------")
+
+print("Context Words :", context)
+print("Predicted Word:", predicted_word)
+
+print("\nPrediction Probabilities:")
+
+for word_id, probability in enumerate(prediction[0]):
+    
+    if word_id in reverse_word:
+        print(
+            f"{reverse_word[word_id]:12s} : "
+            f"{probability:.4f}"
+        )
