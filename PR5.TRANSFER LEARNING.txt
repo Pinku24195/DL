@@ -1,0 +1,119 @@
+
+
+
+# 1. Import required libraries
+import tensorflow as tf
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+import matplotlib.pyplot as plt
+
+
+# 2. Load and preprocess CIFAR-10 dataset
+
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
+
+# Use a smaller dataset to make training faster for practical exams
+x_train = x_train[:5000]
+y_train = y_train[:5000]
+x_test = x_test[:1000]
+y_test = y_test[:1000]
+
+# Resize images from 32x32 to 224x224 for VGG16
+x_train = tf.image.resize(x_train, (224, 224))
+x_test = tf.image.resize(x_test, (224, 224))
+
+# Preprocess images for VGG16
+x_train = tf.keras.applications.vgg16.preprocess_input(x_train)
+x_test = tf.keras.applications.vgg16.preprocess_input(x_test)
+
+
+# 3. Load pre-trained VGG16 model
+
+
+base_model = VGG16(
+    weights='imagenet',
+    include_top=False,
+    input_shape=(224, 224, 3)
+)
+
+
+# 4. Freeze lower convolutional layers
+
+
+base_model.trainable = False
+
+
+# 5. Add a custom classifier
+
+
+model = Sequential([
+    base_model,
+    GlobalAveragePooling2D(),
+    Dense(128, activation='relu'),
+    Dense(10, activation='softmax')
+])
+
+
+# 6. Compile and train the classifier
+
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+print("Training the custom classifier...")
+
+history = model.fit(
+    x_train,
+    y_train,
+    epochs=3,
+    batch_size=32,
+    validation_data=(x_test, y_test)
+)
+
+
+# 7. Evaluate the model
+
+test_loss, test_accuracy = model.evaluate(x_test, y_test)
+
+print("\nTest Accuracy:", test_accuracy)
+
+
+# 8. Fine-tuning: Unfreeze some layers
+
+
+base_model.trainable = True
+
+# Freeze all layers except the last few layers
+for layer in base_model.layers[:-4]:
+    layer.trainable = False
+
+# Recompile with a smaller learning rate
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.00001),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+print("\nFine-tuning the model...")
+
+history_fine = model.fit(
+    x_train,
+    y_train,
+    epochs=2,
+    batch_size=32,
+    validation_data=(x_test, y_test)
+)
+
+
+# 9. Plot accuracy
+
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Model Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
